@@ -434,7 +434,7 @@ pgr <- rbindlist(list(
   , lfst_r_lfe2emprt
   , lfst_r_lfe2ehrwa
   , ilc_di11_r)
-  # , fill = T
+  , fill = T
   , use.names = TRUE
 )
 
@@ -459,7 +459,7 @@ pgr <- pgr[
 
 
 # setnames(indici_purse, "TIME_PERIOD", "TIME_PERIOD")
-saveRDS(pgr, "dati/indici_all_years.drs")
+saveRDS(pgr, "../datasets/indici_all_years.drs")
 
 
 # pgr %>% regions::get_country_code(typology = "NUTS2")
