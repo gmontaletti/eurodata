@@ -7,7 +7,10 @@ library(data.table)
 
 regioni <- readRDS("../datasets/EURO_indicatori.rds")
 
+sink(file = "xlsx/fonti.txt")
 get_bibentry(names(regioni))
+sink(file = NULL)
+
 
 # tira su -----
 list2env(regioni, env = .GlobalEnv)
@@ -18,7 +21,7 @@ names(edat_lfs_9917)
 edat_lfs_9917 %>% group_by(isced11) %>% count()
 
 get_bibentry("edat_lfs_9917")
-# writexl::write_xlsx(edat_lfs_9917, "xlsx/edat_lfs_9917.xlsx")
+writexl::write_xlsx(edat_lfs_9917, "xlsx/edat_lfs_9917.xlsx")
 
 edat_lfs_9917 <-  edat_lfs_9917 %>%
   filter(sex == "Total" &
@@ -33,7 +36,7 @@ edat_lfs_9917 <-  edat_lfs_9917 %>%
   mutate(indice = "Pct 25-64 anni per titolo di studio") %>%
   mutate(iCode = "Educ2564P") %>%
   mutate(area = paste(paese, regione)) %>%
-  select(indice, gruppo = isced11, iCode, area, geo, TIME_PERIOD_PERIOD, values)
+  select(indice, gruppo = isced11, iCode, area, geo, TIME_PERIOD, values)
 
 ## Pct 18-24 abbandono studi ----
 names(edat_lfse_16)
@@ -358,15 +361,15 @@ yth_empl_130 <-  yth_empl_130 %>%
   mutate(iCode = "DisGioLuP")
 
 ### PPs in euro ----
-names(tgs00005)
-get_bibentry("tgs00005")
-tgs00005 %>% select(where(~n_distinct(.) > 1)) %>% names()
-tgs00005 <-  tgs00005 %>%
-  mutate(indice = "PPS") %>%
-  mutate(gruppo = "Euro") %>%
-  mutate(area = paste(paese, regione)) %>%
-  select(indice, gruppo, area, geo, TIME_PERIOD, values) %>%
-  mutate(iCode = "EuroPPS")
+# names(tgs00005)
+# get_bibentry("tgs00005")
+# tgs00005 %>% select(where(~n_distinct(.) > 1)) %>% names()
+# tgs00005 <-  tgs00005 %>%
+#   mutate(indice = "PPS") %>%
+#   mutate(gruppo = "Euro") %>%
+#   mutate(area = paste(paese, regione)) %>%
+#   select(indice, gruppo, area, geo, TIME_PERIOD, values) %>%
+#   mutate(iCode = "EuroPPS")
 
 ### popolazione valori ----
 
@@ -428,7 +431,7 @@ pgr <- rbindlist(list(
   , edat_lfs_9917
   , demo_r_d2jan
   , demo_r_pjanind2
-  , tgs00005
+  # , tgs00005
   , edat_lfse_22
   , lfst_r_lfu3rt
   , lfst_r_lfe2emprt
@@ -509,7 +512,7 @@ ggplot(tp2) +
   geom_point() +
   theme_minimal()
 
-indici <- pgr[uName %in%  tp2$uName & TIME_PERIOD == 2023]
+indici <- pgr[uName %in%  tp2$uName & TIME_PERIOD == 2024]
 
 indici[!is.na(values), .N, .(iCode)]
 
@@ -521,9 +524,9 @@ indici <- indici[!iCode %in% incompleto]
 #
 # regions::all_valid_nuts_codes -> temp
 
-saveRDS(indici, "dati/indici_2023.drs")
+saveRDS(indici, "dati/indici_2024.drs")
 
-
+writexl::write_xlsx(indici, "xlsx/indici_2024.xlsx")
 indici[, .N, iCode]
 
 

@@ -69,7 +69,7 @@ dati = c(
   , "edat_lfs_9917"
   , "demo_r_d2jan"
   , "demo_r_pjanind2"
-  , "tgs00005"
+  # , "tgs00005"
   , "edat_lfse_22"
   , "lfst_r_lfu3rt"
   , "lfst_r_lfe2emprt"
