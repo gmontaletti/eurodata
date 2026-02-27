@@ -1,0 +1,9 @@
+^renv$
+^renv\.lock$
+^\.Rprofile$
+^CLAUDE\.md$
+^\.claude$
+^dati$
+^xlsx$
+^eurodata\.Rproj$
+^\.Rproj\.user$

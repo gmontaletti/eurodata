@@ -1,0 +1,25 @@
+Package: eurodata
+Title: Regional Indicators from Eurostat for EU27 NUTS-2 Regions
+Version: 0.1.0
+Authors@R:
+    person("Giampaolo", "Montaletti",
+           email = "giampaolo.montaletti@gmail.com",
+           role = c("aut", "cre"),
+           comment = c(ORCID = "0009-0002-5327-1122"))
+Description: Collects regional (NUTS-2) indicators from Eurostat for EU27
+    countries, transforms them into a unified schema, selects a peer group
+    of regions comparable to a reference region, and exports the results.
+License: Apache License (>= 2) | file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Imports:
+    data.table,
+    dplyr,
+    eurostat,
+    regions
+Suggests:
+    ggplot2,
+    writexl,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3

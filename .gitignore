@@ -16,3 +16,19 @@ vignettes/*.pdf
 # OAuth2 token, see https://github.com/hadley/httr/releases/tag/v0.3
 .httr-oauth
 
+# Package build artefacts
+*.tar.gz
+*.Rcheck/
+src/*.o
+src/*.so
+src/*.dll
+
+# renv
+renv/library/
+renv/staging/
+renv/sandbox/
+
+# Local data
+dati/
+xlsx/
+
