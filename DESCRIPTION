@@ -19,8 +19,12 @@ Imports:
     eurostat,
     regions
 Suggests:
+    DT,
+    flexdashboard,
     ggplot2,
+    plotly,
     qs,
+    rmarkdown,
     tarchetypes,
     targets,
     testthat (>= 3.0.0),

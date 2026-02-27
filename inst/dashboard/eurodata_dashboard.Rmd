@@ -1,0 +1,401 @@
+---
+title: "eurodata — Regional Indicators Explorer"
+output:
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: scroll
+    theme: bootstrap
+    source_code: embed
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(data.table)
+library(ggplot2)
+library(plotly)
+library(DT)
+library(eurodata)
+
+# 1. Load data -----
+# Run from project root: rmarkdown::run("inst/dashboard/eurodata_dashboard.Rmd")
+peer_dt <- as.data.table(readRDS("../../dati/indici_2024.rds"))
+all_dt  <- as.data.table(readRDS("../../dati/indici_all_years.rds"))
+
+# 2. Reference region -----
+REF_REGION_CODE <- "ITH3"
+REF_REGION_PATTERN <- "Veneto"
+
+# 3. Thematic groups -----
+THEMATIC_GROUPS <- list(
+  Education     = c("Educ2564P", "AbbaStudP", "Occ3AnniP", "NEETP", "Formz4sett"),
+  Employment    = c("OccTass", "AttTass", "FTimPtimM", "DurContrP", "SlackFLEP"),
+  Unemployment  = c("DisTass", "DisLungaP", "DisGioLuP"),
+  `Hours of Work` = c("OreLavSol", "OreLActual"),
+  `Science/ICT` = c("SCItecPOPP", "OcSetP", "ICTVacaP", "ICTVacVP"),
+  Economy       = c("PPSprcptP", "ProdRealI", "Income"),
+  Demographics  = c("Popolazio", "PopIndici")
+)
+
+# 4. Load pre-built indicator labels -----
+INDIC_LABELS <- as.data.table(readRDS("../../dati/indic_labels.rds"))
+
+# Helper: get Eurostat title for an iCode root
+get_eurostat_label <- function(icode_root) {
+  row <- INDIC_LABELS[iCode_root == icode_root]
+  if (nrow(row) && !is.na(row$eurostat_title[1])) row$eurostat_title[1] else icode_root
+}
+
+# 5. Helper: match iCode to thematic group root -----
+match_group <- function(icodes, groups = THEMATIC_GROUPS) {
+  roots <- unlist(groups, use.names = FALSE)
+  group_names <- rep(names(groups), lengths(groups))
+  out <- character(length(icodes))
+  for (i in seq_along(roots)) {
+    out[startsWith(icodes, roots[i]) & out == ""] <- group_names[i]
+  }
+  out[out == ""] <- "Other"
+  out
+}
+
+# 6. Build distinct indicator table for selectors -----
+indic_table <- unique(peer_dt[, .(iCode, iName)])
+indic_table[, group := match_group(iCode)]
+indic_table[, iCode_root := {
+  roots <- vapply(eurodata::dataset_specs, `[[`, character(1), "iCode")
+  out <- character(.N)
+  for (r in roots) {
+    idx <- startsWith(iCode, r) & out == ""
+    out[idx] <- r
+  }
+  out
+}]
+
+# All-years indicator table
+indic_table_all <- unique(all_dt[, .(iCode, iName)])
+indic_table_all[, group := match_group(iCode)]
+
+# 7. Helper: identify Veneto -----
+is_veneto <- function(uname) grepl(REF_REGION_PATTERN, uname, ignore.case = TRUE)
+
+# 8. Pre-aggregate heatmap availability -----
+heatmap_avail <- peer_dt[, .(present = any(!is.na(values))), by = .(uName, iCode)]
+heatmap_avail[, group := match_group(iCode)]
+region_order <- sort(unique(heatmap_avail$uName))
+veneto_name <- region_order[grepl(REF_REGION_PATTERN, region_order)]
+region_order <- c(veneto_name, setdiff(region_order, veneto_name))
+heatmap_avail[, uName := factor(uName, levels = rev(region_order))]
+indic_order <- heatmap_avail[, .(group = group[1]), by = iCode][order(group, iCode)]$iCode
+heatmap_avail[, iCode := factor(iCode, levels = indic_order)]
+```
+
+Overview
+=====================================
+
+Row {data-height=120}
+-------------------------------------
+
+### Peer Regions
+```{r vb-peer-regions}
+n_regions <- length(unique(peer_dt$uCode))
+valueBox(n_regions, caption = "Peer Regions", icon = "fa-globe", color = "primary")
+```
+
+### Indicators
+```{r vb-indicators}
+n_indic <- length(unique(peer_dt$iCode))
+valueBox(n_indic, caption = "Indicators", icon = "fa-chart-bar", color = "info")
+```
+
+### Year
+```{r vb-year-range}
+yr <- paste(range(peer_dt$TIME_PERIOD), collapse = "–")
+valueBox(yr, caption = "Year Range", icon = "fa-calendar", color = "success")
+```
+
+Row {data-height=700}
+-------------------------------------
+
+### Data Availability Heatmap (Peer Group 2024)
+```{r heatmap-availability, fig.height=10, fig.width=14}
+ggplot(heatmap_avail, aes(x = iCode, y = uName, fill = present)) +
+  geom_tile(colour = "white", linewidth = 0.3) +
+  scale_fill_manual(
+    values = c("TRUE" = "#2c7bb6", "FALSE" = "#d7191c"),
+    labels = c("TRUE" = "Available", "FALSE" = "Missing"),
+    name = NULL
+  ) +
+  labs(x = NULL, y = NULL) +
+  theme_minimal(base_size = 9) +
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 6),
+    axis.text.y = element_text(size = 7),
+    legend.position = "top",
+    panel.grid = element_blank()
+  )
+```
+
+Indicator Explorer
+=====================================
+
+Column {.sidebar data-width=280}
+-------------------------------------
+
+```{r explorer-sidebar}
+selectInput("explorer_group", "Thematic Group:",
+            choices = names(THEMATIC_GROUPS))
+
+# Reactive: indicators filtered by selected group
+explorer_indicators <- reactive({
+  roots <- THEMATIC_GROUPS[[input$explorer_group]]
+  sub <- indic_table[group == input$explorer_group]
+  choices <- setNames(sub$iCode, sub$iName)
+  choices
+})
+
+renderUI({
+  selectInput("explorer_indicator", "Indicator:",
+              choices = explorer_indicators())
+})
+
+radioButtons("explorer_sort", "Sort Order:",
+             choices = c("Descending" = "desc", "Ascending" = "asc",
+                         "Alphabetical" = "alpha"),
+             selected = "desc")
+```
+
+```{r explorer-label}
+# Subtitle from Eurostat TOC
+renderUI({
+  req(input$explorer_indicator)
+  icode <- input$explorer_indicator
+  root <- indic_table[iCode == icode, iCode_root][1]
+  label <- get_eurostat_label(root)
+  if (label != root) {
+    tags$p(tags$em(label), style = "font-size: 0.85em; color: #666; margin-top: 10px;")
+  }
+})
+```
+
+Row
+-------------------------------------
+
+### Bar Chart: Peer Region Comparison
+```{r explorer-barchart}
+renderPlotly({
+  req(input$explorer_indicator)
+
+  sub <- peer_dt[iCode == input$explorer_indicator & !is.na(values)]
+  req(nrow(sub) > 0)
+
+  # Sort
+  if (input$explorer_sort == "desc") {
+    sub[, uName := reorder(uName, values)]
+  } else if (input$explorer_sort == "asc") {
+    sub[, uName := reorder(uName, -values)]
+  } else {
+    sub[, uName := factor(uName, levels = sort(unique(as.character(uName)), decreasing = TRUE))]
+  }
+
+  sub[, highlight := ifelse(is_veneto(as.character(uName)), "Veneto", "Other")]
+
+  p <- ggplot(sub, aes(x = values, y = uName, fill = highlight,
+                        text = paste0(uName, ": ", values))) +
+    geom_col(width = 0.7) +
+    scale_fill_manual(values = c("Veneto" = "#d62728", "Other" = "#1f77b4"),
+                      name = NULL) +
+    labs(x = sub$iName[1], y = NULL,
+         title = input$explorer_indicator) +
+    theme_minimal(base_size = 11) +
+    theme(legend.position = "none")
+
+  ggplotly(p, tooltip = "text") |>
+    layout(margin = list(l = 180))
+})
+```
+
+Time Series
+=====================================
+
+Column {.sidebar data-width=280}
+-------------------------------------
+
+```{r ts-sidebar}
+selectInput("ts_group", "Thematic Group:",
+            choices = names(THEMATIC_GROUPS))
+
+# Reactive: indicators filtered by group (all-years data)
+ts_indicators <- reactive({
+  roots <- THEMATIC_GROUPS[[input$ts_group]]
+  sub <- indic_table_all[group == input$ts_group]
+  choices <- setNames(sub$iCode, sub$iName)
+  choices
+})
+
+renderUI({
+  selectInput("ts_indicator", "Indicator:",
+              choices = ts_indicators())
+})
+
+# Region picker, default to Veneto
+all_regions <- sort(unique(all_dt$uName))
+veneto_default <- all_regions[grepl(REF_REGION_PATTERN, all_regions)]
+
+renderUI({
+  selectizeInput("ts_regions", "Regions:",
+                 choices = all_regions,
+                 selected = veneto_default,
+                 multiple = TRUE,
+                 options = list(maxItems = 10))
+})
+
+checkboxInput("ts_index", "Index mode (first year = 100)", value = FALSE)
+
+# Filter: annual only (exclude quarterly data)
+checkboxInput("ts_annual_only", "Annual data only", value = TRUE)
+```
+
+```{r ts-label}
+# Subtitle from Eurostat TOC
+renderUI({
+  req(input$ts_indicator)
+  icode <- input$ts_indicator
+  root_match <- vapply(eurodata::dataset_specs, function(s) {
+    if (startsWith(icode, s$iCode)) s$iCode else NA_character_
+  }, character(1))
+  root <- root_match[!is.na(root_match)][1]
+  if (!is.na(root)) {
+    label <- get_eurostat_label(root)
+    if (label != root) {
+      tags$p(tags$em(label), style = "font-size: 0.85em; color: #666; margin-top: 10px;")
+    }
+  }
+})
+```
+
+Row
+-------------------------------------
+
+### Time Series
+```{r ts-lineplot}
+renderPlotly({
+  req(input$ts_indicator, input$ts_regions)
+
+  sub <- all_dt[iCode == input$ts_indicator &
+                uName %in% input$ts_regions &
+                !is.na(values)]
+  req(nrow(sub) > 0)
+
+  # Filter quarterly if requested
+  if (isTRUE(input$ts_annual_only)) {
+    sub <- sub[!grepl("-Q", TIME_PERIOD)]
+  }
+
+  # Convert TIME_PERIOD to numeric for plotting
+  sub[, year := as.numeric(sub("(-Q.*)", "", TIME_PERIOD))]
+  # For quarterly, add fractional year
+  sub[grepl("-Q1", TIME_PERIOD), year := year + 0.00]
+  sub[grepl("-Q2", TIME_PERIOD), year := year + 0.25]
+  sub[grepl("-Q3", TIME_PERIOD), year := year + 0.50]
+  sub[grepl("-Q4", TIME_PERIOD), year := year + 0.75]
+
+  sub <- sub[order(uName, year)]
+
+  # Index mode
+  if (isTRUE(input$ts_index)) {
+    sub[, values := {
+      first_val <- values[!is.na(values)][1]
+      if (is.na(first_val) || first_val == 0) values else values / first_val * 100
+    }, by = uName]
+  }
+
+  sub[, highlight := ifelse(is_veneto(as.character(uName)), "bold", "normal")]
+
+  p <- ggplot(sub, aes(x = year, y = values, colour = uName, group = uName,
+                        text = paste0(uName, "\n", TIME_PERIOD, ": ", round(values, 2)))) +
+    geom_line(aes(linewidth = highlight), show.legend = FALSE) +
+    geom_point(size = 1, alpha = 0.6) +
+    scale_linewidth_manual(values = c("bold" = 1.3, "normal" = 0.5)) +
+    labs(x = "Year", y = if (isTRUE(input$ts_index)) "Index (first year = 100)" else "Value",
+         title = input$ts_indicator,
+         colour = "Region") +
+    theme_minimal(base_size = 11)
+
+  ggplotly(p, tooltip = "text") |>
+    layout(legend = list(orientation = "v", x = 1.02, y = 1))
+})
+```
+
+Data Table
+=====================================
+
+Row {data-height=80}
+-------------------------------------
+
+```{r dt-filters}
+fillCol(flex = NA, height = "70px",
+  fillRow(
+    radioButtons("dt_dataset", NULL,
+                 choices = c("Peer Group (2024)" = "peer", "All Years" = "all"),
+                 selected = "peer", inline = TRUE),
+    textInput("dt_filter_icode", "Filter iCode:", placeholder = "e.g. OccTass"),
+    renderUI({
+      if (input$dt_dataset == "all") {
+        years_num <- as.numeric(unique(all_dt[!grepl("-Q", TIME_PERIOD), TIME_PERIOD]))
+        years_num <- years_num[!is.na(years_num)]
+        sliderInput("dt_year_range", "Year Range:",
+                    min = min(years_num), max = max(years_num),
+                    value = c(max(years_num) - 10, max(years_num)),
+                    step = 1, sep = "")
+      }
+    })
+  )
+)
+```
+
+Row
+-------------------------------------
+
+### Data
+```{r dt-table}
+renderDT({
+  if (input$dt_dataset == "peer") {
+    dt <- peer_dt[TRUE]
+  } else {
+    dt <- all_dt
+    # Year filter for all-years mode
+    if (!is.null(input$dt_year_range)) {
+      yr_min <- input$dt_year_range[1]
+      yr_max <- input$dt_year_range[2]
+      year_num <- as.numeric(sub("(-Q.*)", "", dt$TIME_PERIOD))
+      dt <- dt[!is.na(year_num) & year_num >= yr_min & year_num <= yr_max]
+    }
+  }
+
+  # iCode text filter
+  if (nzchar(input$dt_filter_icode)) {
+    dt <- dt[grepl(input$dt_filter_icode, iCode, ignore.case = TRUE)]
+  }
+
+  datatable(
+    dt,
+    filter = "top",
+    extensions = "Buttons",
+    options = list(
+      pageLength = 25,
+      dom = "Bfrtip",
+      buttons = c("csv", "excel"),
+      scrollX = TRUE
+    ),
+    rownames = FALSE
+  ) |>
+    formatStyle(
+      "uName",
+      target = "row",
+      backgroundColor = styleEqual(
+        unique(dt$uName[grepl(REF_REGION_PATTERN, dt$uName)]),
+        rep("#fff9c4", length(unique(dt$uName[grepl(REF_REGION_PATTERN, dt$uName)])))
+      )
+    )
+})
+```

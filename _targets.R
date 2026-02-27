@@ -30,6 +30,46 @@ list(
     age = as.difftime(REFRESH_DAYS, units = "days")
   ),
 
+  # Build indicator labels from Eurostat TOC (re-fetch with same cadence)
+  tarchetypes::tar_age(
+    indic_labels,
+    {
+      toc <- eurostat::get_eurostat_toc()
+      toc_dt <- data.table::as.data.table(toc)[, .(
+        dataset_id = code,
+        eurostat_title = title
+      )]
+      spec_lookup <- data.table::data.table(
+        dataset_id = vapply(
+          eurodata::dataset_specs,
+          `[[`,
+          character(1),
+          "dataset_id"
+        ),
+        iCode_root = vapply(
+          eurodata::dataset_specs,
+          `[[`,
+          character(1),
+          "iCode"
+        )
+      )
+      merge(spec_lookup, toc_dt, by = "dataset_id", all.x = TRUE)
+    },
+    age = as.difftime(REFRESH_DAYS, units = "days")
+  ),
+
+  # Export indicator labels to RDS
+  tar_target(
+    export_indic_labels,
+    {
+      path <- file.path(OUT_DIR_RDS, "indic_labels.rds")
+      dir.create(dirname(path), showWarnings = FALSE, recursive = TRUE)
+      saveRDS(indic_labels, path)
+      path
+    },
+    format = "file"
+  ),
+
   # Transform into unified schema
   tar_target(
     unified,
