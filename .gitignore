@@ -32,3 +32,6 @@ renv/sandbox/
 dati/
 xlsx/
 
+# targets pipeline store
+_targets/
+

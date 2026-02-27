@@ -158,7 +158,7 @@ dataset_specs <- list(
     dataset_id = "lfst_r_lfe2eftpt",
     indice = "Migliaia di addetti",
     iCode = "FTimPtimM",
-    gruppo_col = "workTIME_PERIOD",
+    gruppo_col = "worktime",
     filters = list(
       wstatus = "Employed persons",
       sex = "Total",

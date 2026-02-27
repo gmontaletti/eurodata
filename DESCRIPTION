@@ -20,6 +20,9 @@ Imports:
     regions
 Suggests:
     ggplot2,
-    writexl,
-    testthat (>= 3.0.0)
+    qs,
+    tarchetypes,
+    targets,
+    testthat (>= 3.0.0),
+    writexl
 Config/testthat/edition: 3

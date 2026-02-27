@@ -126,6 +126,7 @@
     time_format = "raw",
     use.data.table = TRUE
   )
+  data.table::setDT(dt)
 
   # 2. Build country/region lookup -----
   lookup <- .build_geo_lookup(dt)
